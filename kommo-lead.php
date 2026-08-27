@@ -418,7 +418,6 @@ function detectOrigem(array $tracking, string $padrao): string
 
     $source   = $get('utm_source');
     $medium   = $get('utm_medium');
-    $campaign = $get('utm_campaign');
     $referrer = $get('referrer');
 
     $has = static function (string $key) use ($tracking): bool {
@@ -457,16 +456,23 @@ function detectOrigem(array $tracking, string $padrao): string
 
     /*
      * 2) Origem declarada pela UTM.
+     *
+     * Quem chega por busca ou por um link comum não traz utm_source.
+     * Então, se a UTM existe, alguém marcou aquele link de propósito:
+     * o padrão passa a ser a campanha da plataforma.
+     *
+     * Só volta a ser orgânico quando a própria mídia diz que não é
+     * anúncio (link da bio, perfil, e-mail, busca orgânica).
      */
-    $paidMediums = [
-        'cpc', 'ppc', 'paid', 'paidsocial', 'paid_social', 'paid-social',
-        'cpm', 'cpv', 'display', 'banner', 'ads', 'ad', 'anuncio',
-        'remarketing', 'retargeting', 'social_paid'
+    $midiasNaoPagas = [
+        'organic', 'organico', 'orgânico', 'seo', 'natural',
+        'bio', 'linkbio', 'link-bio', 'linktree',
+        'perfil', 'profile', 'post', 'postagem',
+        'email', 'e-mail', 'mail', 'newsletter',
+        'assinatura', 'signature', 'whatsapp', 'wpp'
     ];
 
-    $isPaid = $contains($medium, $paidMediums)
-        || $contains($source, ['ads', 'anuncio'])
-        || $contains($campaign, ['ads', 'anuncio']);
+    $naoPago = $contains($medium, $midiasNaoPagas);
 
     $sourceGroups = [
         'Anuncio Meta'     => ['facebook', 'fb', 'meta', 'instagram', 'ig'],
@@ -477,7 +483,7 @@ function detectOrigem(array $tracking, string $padrao): string
 
     foreach ($sourceGroups as $origem => $needles) {
         if ($contains($source, $needles)) {
-            return $isPaid ? $origem : 'Organico';
+            return $naoPago ? 'Organico' : $origem;
         }
     }
 
@@ -601,6 +607,61 @@ $tracking = array_map(
     },
     $tracking
 );
+
+/*
+|--------------------------------------------------------------------------
+| REDE DE SEGURANÇA PARA O RASTREIO
+|--------------------------------------------------------------------------
+|
+| Se o envio não trouxe nenhuma UTM, elas são lidas do endereço da
+| página que fez o envio, que o navegador informa no cabeçalho Referer.
+|
+| Isso cobre o visitante cujo navegador ainda tem uma versão antiga do
+| main.js em cache, e qualquer página do site que ainda não tenha sido
+| atualizada.
+|
+*/
+
+$chavesDeRastreio = [
+    'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+    'gclid', 'gbraid', 'wbraid', 'gad_source',
+    'fbclid', 'ttclid', 'li_fat_id', 'msclkid'
+];
+
+$recebeuRastreio = false;
+
+foreach ($chavesDeRastreio as $chave) {
+    if (trim((string) ($tracking[$chave] ?? '')) !== '') {
+        $recebeuRastreio = true;
+        break;
+    }
+}
+
+if (!$recebeuRastreio) {
+    $paginaDeOrigem = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+
+    if ($paginaDeOrigem !== '') {
+        $queryDaPagina = (string) parse_url($paginaDeOrigem, PHP_URL_QUERY);
+
+        if ($queryDaPagina !== '') {
+            $parametrosDaPagina = [];
+            parse_str($queryDaPagina, $parametrosDaPagina);
+
+            foreach ($chavesDeRastreio as $chave) {
+                if (isset($parametrosDaPagina[$chave])) {
+                    $tracking[$chave] = textValue(
+                        $parametrosDaPagina[$chave],
+                        500
+                    );
+                }
+            }
+        }
+
+        if (trim((string) ($tracking['landing_page'] ?? '')) === '') {
+            $tracking['landing_page'] = textValue($paginaDeOrigem, 500);
+        }
+    }
+}
 
 /*
  * Registro imediato: o lead existe em disco antes de qualquer
