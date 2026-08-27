@@ -195,7 +195,11 @@ $logDirectory = __DIR__ . '/kommo-logs';
 |--------------------------------------------------------------------------
 */
 
-function respond(int $status, array $data): never
+/*
+ * Sem declaração de tipo de retorno.
+ * "never" só existe a partir do PHP 8.1 e a hospedagem roda 7.x.
+ */
+function respond(int $status, array $data)
 {
     http_response_code($status);
 
@@ -248,7 +252,7 @@ function writeLog(string $directory, string $file, array $data): void
             $line . PHP_EOL,
             FILE_APPEND | LOCK_EX
         );
-    } catch (Throwable) {
+    } catch (Throwable $falhaDeRegistro) {
         // Registro é opcional. Seguir em frente.
     }
 }
@@ -379,7 +383,7 @@ function normalizeBrazilianPhone(string $phone): string
     return '+' . $digits;
 }
 
-function textValue(mixed $value, int $maxLength = 250): string
+function textValue($value, int $maxLength = 250): string
 {
     if (is_array($value)) {
         $value = implode(', ', array_map('strval', $value));
@@ -423,7 +427,7 @@ function detectOrigem(array $tracking, string $padrao): string
 
     $contains = static function (string $haystack, array $needles): bool {
         foreach ($needles as $needle) {
-            if ($haystack !== '' && str_contains($haystack, $needle)) {
+            if ($haystack !== '' && strpos($haystack, $needle) !== false) {
                 return true;
             }
         }
@@ -592,7 +596,9 @@ foreach ($trackingKeys as $key) {
 }
 
 $tracking = array_map(
-    static fn ($value) => textValue($value, 500),
+    function ($value) {
+        return textValue($value, 500);
+    },
     $tracking
 );
 
@@ -809,10 +815,12 @@ function loadFieldCatalog(
                 'code' => $field['code'] ?? null,
                 'type' => (string) ($field['type'] ?? ''),
                 'enums' => array_map(
-                    static fn (array $enum) => [
-                        'id' => (int) ($enum['id'] ?? 0),
-                        'value' => (string) ($enum['value'] ?? '')
-                    ],
+                    function (array $enum) {
+                        return [
+                            'id' => (int) ($enum['id'] ?? 0),
+                            'value' => (string) ($enum['value'] ?? '')
+                        ];
+                    },
                     is_array($field['enums'] ?? null) ? $field['enums'] : []
                 )
             ];
