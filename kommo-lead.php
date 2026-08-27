@@ -41,14 +41,6 @@ $kommoToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6ImViZjI3YmU4ZTBhZjBkY
 $pipelineId = 13669567;
 $statusId = 105493519;
 
-$cargoFieldId = 372690;
-
-/*
- * Coloque aqui o ID do campo de contato
- * Produto de Interesse.
- */
-$produtoInteresseFieldId = 2440435;
-
 /*
 |--------------------------------------------------------------------------
 | RESPONSÁVEL
@@ -181,20 +173,6 @@ $empresa = trim((string) ($data['empresa'] ?? ''));
 $email = trim((string) ($data['email'] ?? ''));
 $telefone = trim((string) ($data['telefone'] ?? ''));
 
-$cargo = trim((string) ($data['cargo'] ?? ''));
-
-$produtoInteresse = trim(
-    (string) ($data['produto_interesse'] ?? '')
-);
-
-$origem = trim(
-    (string) ($data['origem'] ?? 'Landing Page Smart3DX')
-);
-
-$mensagem = trim(
-    (string) ($data['mensagem'] ?? '')
-);
-
 if (mb_strlen($nome) < 2) {
     respond(422, [
         'success' => false,
@@ -245,93 +223,11 @@ if (
 | Por isso, o código procura os campos automaticamente.
 |
 */
-function buildContactCustomField(
-    array $field,
-    string $value
-): ?array {
-    $value = trim($value);
-
-    if ($value === '') {
-        return null;
-    }
-
-    $fieldId = isset($field['id'])
-        ? (int) $field['id']
-        : 0;
-
-    $fieldType = isset($field['type'])
-        ? (string) $field['type']
-        : '';
-
-    if ($fieldId <= 0) {
-        return null;
-    }
-
-    /*
-     * Campos de seleção precisam receber o enum_id
-     * correspondente à opção cadastrada no Kommo.
-     */
-    $selectTypes = [
-        'select',
-        'multiselect',
-        'radiobutton'
-    ];
-
-    if (in_array($fieldType, $selectTypes, true)) {
-        $enums = isset($field['enums'])
-            && is_array($field['enums'])
-            ? $field['enums']
-            : [];
-
-        foreach ($enums as $enum) {
-            $enumValue = trim(
-                (string) ($enum['value'] ?? '')
-            );
-
-            if (strcasecmp($enumValue, $value) === 0) {
-                return [
-                    'field_id' => $fieldId,
-                    'values' => [
-                        [
-                            'enum_id' => (int) $enum['id']
-                        ]
-                    ]
-                ];
-            }
-        }
-
-        throw new RuntimeException(
-            'A opção "' . $value
-            . '" não existe no campo "'
-            . ($field['name'] ?? 'desconhecido')
-            . '" do Kommo.'
-        );
-    }
-
-    /*
-     * Campo de texto ou outro tipo que aceita
-     * diretamente o valor.
-     */
-    return [
-        'field_id' => $fieldId,
-        'values' => [
-            [
-                'value' => $value
-            ]
-        ]
-    ];
-}
 
 try {
-    /*
-    |--------------------------------------------------------------------------
-    | LOCALIZAR TELEFONE E E-MAIL
-    |--------------------------------------------------------------------------
-    */
-
     $fieldsUrl =
-        "https://{$kommoSubdomain}.kommo.com"
-        . "/api/v4/contacts/custom_fields?limit=250";
+        "https://{$kommoSubdomain}.kommo.com/api/v4/contacts/custom_fields"
+        . "?limit=250";
 
     $fieldsResponse = kommoRequest(
         'GET',
@@ -339,10 +235,7 @@ try {
         $kommoToken
     );
 
-    if (
-        $fieldsResponse['status'] < 200
-        || $fieldsResponse['status'] >= 300
-    ) {
+    if ($fieldsResponse['status'] < 200 || $fieldsResponse['status'] >= 300) {
         respond(502, [
             'success' => false,
             'message' => 'Não foi possível consultar os campos do Kommo.',
@@ -352,8 +245,7 @@ try {
     }
 
     $customFields =
-        $fieldsResponse['body']['_embedded']['custom_fields']
-        ?? [];
+        $fieldsResponse['body']['_embedded']['custom_fields'] ?? [];
 
     $phoneFieldId = null;
     $emailFieldId = null;
@@ -370,79 +262,16 @@ try {
         }
     }
 
-    /*
-     * Esta validação precisa ficar fora do foreach.
-     */
     if (!$phoneFieldId || !$emailFieldId) {
         respond(500, [
             'success' => false,
-            'message' =>
-                'Os campos de telefone ou e-mail não foram encontrados.'
+            'message' => 'Os campos de telefone ou e-mail não foram encontrados.'
         ]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | CONSULTAR CARGO PELO ID
-    |--------------------------------------------------------------------------
-    */
-
-    $cargoFieldResponse = kommoRequest(
-        'GET',
-        "https://{$kommoSubdomain}.kommo.com"
-        . "/api/v4/contacts/custom_fields/{$cargoFieldId}",
-        $kommoToken
-    );
-
-    if (
-        $cargoFieldResponse['status'] < 200
-        || $cargoFieldResponse['status'] >= 300
-    ) {
-        respond(500, [
-            'success' => false,
-            'message' =>
-                'O ID informado para o campo Cargo não é válido como campo de contato.',
-            'field_id' => $cargoFieldId,
-            'kommo_status' => $cargoFieldResponse['status'],
-            'kommo_response' => $cargoFieldResponse['body']
-        ]);
-    }
-
-    $cargoField = $cargoFieldResponse['body'];
-
-    /*
-    |--------------------------------------------------------------------------
-    | CONSULTAR PRODUTO DE INTERESSE PELO ID
-    |--------------------------------------------------------------------------
-    */
-
-    $produtoFieldResponse = kommoRequest(
-        'GET',
-        "https://{$kommoSubdomain}.kommo.com"
-        . "/api/v4/contacts/custom_fields/{$produtoInteresseFieldId}",
-        $kommoToken
-    );
-
-    if (
-        $produtoFieldResponse['status'] < 200
-        || $produtoFieldResponse['status'] >= 300
-    ) {
-        respond(500, [
-            'success' => false,
-            'message' =>
-                'O ID informado para Produto de Interesse não é válido como campo de contato.',
-            'field_id' => $produtoInteresseFieldId,
-            'kommo_status' => $produtoFieldResponse['status'],
-            'kommo_response' => $produtoFieldResponse['body']
-        ]);
-    }
-
-    $produtoInteresseField =
-        $produtoFieldResponse['body'];
-
-    /*
-    |--------------------------------------------------------------------------
-    | MONTAR OS CAMPOS DO CONTATO
+    | CRIAR LEAD, CONTATO E EMPRESA
     |--------------------------------------------------------------------------
     */
 
@@ -451,8 +280,7 @@ try {
             'field_id' => $phoneFieldId,
             'values' => [
                 [
-                    'value' =>
-                        normalizeBrazilianPhone($telefone),
+                    'value' => normalizeBrazilianPhone($telefone),
                     'enum_code' => 'MOB'
                 ]
             ]
@@ -468,44 +296,8 @@ try {
         ]
     ];
 
-    /*
-     * A função buildContactCustomField detecta se
-     * o campo é texto ou seleção.
-     */
-    if ($cargo !== '') {
-        $cargoCustomField =
-            buildContactCustomField(
-                $cargoField,
-                $cargo
-            );
-
-        if ($cargoCustomField !== null) {
-            $contactCustomFields[] =
-                $cargoCustomField;
-        }
-    }
-
-    if ($produtoInteresse !== '') {
-        $produtoCustomField =
-            buildContactCustomField(
-                $produtoInteresseField,
-                $produtoInteresse
-            );
-
-        if ($produtoCustomField !== null) {
-            $contactCustomFields[] =
-                $produtoCustomField;
-        }
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | CRIAR LEAD, CONTATO E EMPRESA
-    |--------------------------------------------------------------------------
-    */
-
     $lead = [
-        'name' => 'LP Orçamento | ' . $nome,
+        'name' => 'Ebook CAD 3D | ' . $nome,
         'pipeline_id' => (int) $pipelineId,
         'status_id' => (int) $statusId,
 
@@ -513,8 +305,7 @@ try {
             'contacts' => [
                 [
                     'name' => $nome,
-                    'custom_fields_values' =>
-                        $contactCustomFields
+                    'custom_fields_values' => $contactCustomFields
                 ]
             ],
 
@@ -529,7 +320,7 @@ try {
                     'name' => 'Landing Page'
                 ],
                 [
-                    'name' => 'LP Orçamento'
+                    'name' => 'Ebook CAD 3D'
                 ],
                 [
                     'name' => 'Smart3DX'
@@ -539,13 +330,11 @@ try {
     ];
 
     if ($responsibleUserId > 0) {
-        $lead['responsible_user_id'] =
-            (int) $responsibleUserId;
+        $lead['responsible_user_id'] = (int) $responsibleUserId;
     }
 
     $kommoUrl =
-        "https://{$kommoSubdomain}.kommo.com"
-        . "/api/v4/leads/complex";
+        "https://{$kommoSubdomain}.kommo.com/api/v4/leads/complex";
 
     $kommoResponse = kommoRequest(
         'POST',
@@ -554,44 +343,24 @@ try {
         [$lead]
     );
 
-    if (
-        $kommoResponse['status'] < 200
-        || $kommoResponse['status'] >= 300
-    ) {
+    if ($kommoResponse['status'] < 200 || $kommoResponse['status'] >= 300) {
         respond(502, [
             'success' => false,
-            'message' =>
-                'O Kommo recusou o cadastro.',
-            'kommo_status' =>
-                $kommoResponse['status'],
-            'kommo_response' =>
-                $kommoResponse['body'],
-            'campos_enviados' => [
-                'cargo' => $cargo,
-                'cargo_field_id' => $cargoFieldId,
-                'produto_interesse' =>
-                    $produtoInteresse,
-                'produto_field_id' =>
-                    $produtoInteresseFieldId
-            ]
+            'message' => 'O Kommo recusou o cadastro.',
+            'kommo_status' => $kommoResponse['status'],
+            'kommo_response' => $kommoResponse['body']
         ]);
     }
 
-    $createdLead =
-        $kommoResponse['body'][0] ?? [];
+    $createdLead = $kommoResponse['body'][0] ?? [];
 
     respond(200, [
         'success' => true,
-        'message' =>
-            'Lead cadastrado com sucesso.',
-        'lead_id' =>
-            $createdLead['id'] ?? null,
-        'contact_id' =>
-            $createdLead['contact_id'] ?? null,
-        'company_id' =>
-            $createdLead['company_id'] ?? null,
-        'merged' =>
-            $createdLead['merged'] ?? false
+        'message' => 'Lead cadastrado com sucesso.',
+        'lead_id' => $createdLead['id'] ?? null,
+        'contact_id' => $createdLead['contact_id'] ?? null,
+        'company_id' => $createdLead['company_id'] ?? null,
+        'merged' => $createdLead['merged'] ?? false
     ]);
 
 } catch (Throwable $error) {
@@ -604,17 +373,12 @@ try {
 
     respond(500, [
         'success' => false,
-        'message' =>
-            'Erro interno ao cadastrar o lead.',
+        'message' => 'Erro interno ao cadastrar o lead.',
         'debug' => [
-            'tipo' =>
-                get_class($error),
-            'detalhe' =>
-                $error->getMessage(),
-            'arquivo' =>
-                basename($error->getFile()),
-            'linha' =>
-                $error->getLine()
+            'tipo' => get_class($error),
+            'detalhe' => $error->getMessage(),
+            'arquivo' => basename($error->getFile()),
+            'linha' => $error->getLine()
         ]
     ]);
 }
