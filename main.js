@@ -289,6 +289,13 @@ const Smart3DXTracking = (() => {
          Reescrevê-los quebraria a rolagem suave e o menu. */
       if (/^(#|mailto:|tel:|javascript:)/i.test(href)) return;
 
+      /* Arquivos para download não precisam de UTM. */
+      if (/\.(pdf|zip|docx?|xlsx?|pptx?|csv|jpe?g|png|webp|svg|mp4)$/i.test(
+        href.split('?')[0]
+      )) {
+        return;
+      }
+
       let destino;
 
       try {
@@ -351,7 +358,7 @@ const COMPLEMENTOS_WHATSAPP = {
   formulario: 'e gostaria de um orçamento do SOLIDWORKS Design.',
   sucesso: 'Acabei de enviar meu formulário de orçamento e gostaria de adiantar o atendimento.',
   flutuante: 'e gostaria de tirar uma dúvida sobre o SOLIDWORKS Design.',
-  rodape: 'e gostaria de falar com a Smart3DX.'
+  rodape: 'e gostaria de mais informações sobre as soluções de vocês.'
 };
 
 function montarMensagemWhatsApp(contexto) {
