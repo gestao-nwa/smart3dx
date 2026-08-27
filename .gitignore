@@ -1,0 +1,5 @@
+# Registros gerados pela integração com o Kommo (contêm dados de leads)
+kommo-logs/
+
+# Token do Kommo mantido fora do repositório
+kommo-config.php
