@@ -137,7 +137,6 @@ const Smart3DXTracking = (() => {
 
     const source   = texto(dados.utm_source);
     const medium   = texto(dados.utm_medium);
-    const campaign = texto(dados.utm_campaign);
     const referrer = texto(dados.referrer);
 
     if (tem('gclid') || tem('gbraid') || tem('wbraid') || tem('gad_source')) {
@@ -147,15 +146,19 @@ const Smart3DXTracking = (() => {
     if (tem('ttclid'))    return 'Anuncio TikTok';
     if (tem('li_fat_id')) return 'Anuncio Linkedin';
 
-    const midiasPagas = [
-      'cpc', 'ppc', 'paid', 'paidsocial', 'paid_social', 'paid-social',
-      'cpm', 'cpv', 'display', 'banner', 'ads', 'ad', 'anuncio',
-      'remarketing', 'retargeting', 'social_paid'
+    /* Quem chega por busca ou por um link comum não traz utm_source.
+       Se a UTM existe, alguém marcou aquele link de propósito: o padrão
+       passa a ser a campanha da plataforma. Só volta a ser orgânico
+       quando a própria mídia diz que não é anúncio. */
+    const midiasNaoPagas = [
+      'organic', 'organico', 'orgânico', 'seo', 'natural',
+      'bio', 'linkbio', 'link-bio', 'linktree',
+      'perfil', 'profile', 'post', 'postagem',
+      'email', 'e-mail', 'mail', 'newsletter',
+      'assinatura', 'signature', 'whatsapp', 'wpp'
     ];
 
-    const ehPago = contem(medium, midiasPagas)
-      || contem(source, ['ads', 'anuncio'])
-      || contem(campaign, ['ads', 'anuncio']);
+    const naoPago = contem(medium, midiasNaoPagas);
 
     const grupos = [
       ['Anuncio Meta',     ['facebook', 'fb', 'meta', 'instagram', 'ig']],
@@ -165,7 +168,7 @@ const Smart3DXTracking = (() => {
     ];
 
     for (const [origem, termos] of grupos) {
-      if (contem(source, termos)) return ehPago ? origem : 'Organico';
+      if (contem(source, termos)) return naoPago ? 'Organico' : origem;
     }
 
     if (
